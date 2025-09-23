@@ -183,16 +183,25 @@ RUN apk add --no-cache                \
         sdl2-dev                      \
         sdl2_ttf-dev                  \
         util-linux-dev                \
-        webkit2gtk-dev                \
+        webkit2gtk-dev                       
+
+
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.20/main" > /etc/apk/repositories && \
+    echo "https://dl-cdn.alpinelinux.org/alpine/v3.20/community" >> /etc/apk/repositories && \
+    apk update --force-lts --allow-untrusted
+
+RUN apk add --no-cache \
+        libavif \
         ffmpeg-dev                    \
         ffmpeg-libavcodec             \
         ffmpeg-libavformat            \
         ffmpeg-libavutil              \
-        ffmpeg-libswscale             
+        ffmpeg-libswscale    
+
 
 # Copy generic, automatic build script
 COPY ./src/guacd-docker/bin/autobuild.sh ${BUILD_DIR}/src/guacd-docker/bin/
-
+RUN chmod +x ${BUILD_DIR}/src/guacd-docker/bin/autobuild.sh
 #
 # Build dependency: libssh2
 #
@@ -290,6 +299,12 @@ COPY --from=libwebsockets ${PREFIX_DIR} ${PREFIX_DIR}
 
 # Use guacamole-server source from build context
 COPY . ${BUILD_DIR}
+RUN chmod +x ${BUILD_DIR}/src/guacd-docker/bin/autobuild.sh
+RUN chmod +x ${BUILD_DIR}/src/protocols/rdp/keymaps/generate.pl
+RUN chmod +x ${BUILD_DIR}/src/protocols/rdp/plugins/generate-entry-wrappers.pl
+RUN chmod +x ${BUILD_DIR}/src/guacd-docker/bin/list-dependencies.sh
+
+
 
 RUN ${BUILD_DIR}/src/guacd-docker/bin/autobuild.sh "GUACAMOLE_SERVER" "${BUILD_DIR}"
 
@@ -301,9 +316,10 @@ RUN ${BUILD_DIR}/src/guacd-docker/bin/list-dependencies.sh \
         ${PREFIX_DIR}/sbin/guacd               \
         ${PREFIX_DIR}/lib/libguac-client-*.so  \
         ${FREERDP_LIB_PATH}/*guac*.so   \
-        ${PREFIX_DIR}/bin/guacenc  \
         > ${PREFIX_DIR}/DEPENDENCIES
-
+RUN ${BUILD_DIR}/src/guacd-docker/bin/list-dependencies.sh \
+    ${PREFIX_DIR}/bin/guacenc  \
+    > ${PREFIX_DIR}/DEPENDENCIES_GUACENC
 #
 # STAGE 8: Final, runtime image.
 #
@@ -327,6 +343,14 @@ RUN apk add --no-cache                \
         ttf-liberation                \
         util-linux-login && \
     xargs apk add --no-cache < ${PREFIX_DIR}/DEPENDENCIES
+
+
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.20/main" > /etc/apk/repositories && \
+    echo "https://dl-cdn.alpinelinux.org/alpine/v3.20/community" >> /etc/apk/repositories && \
+    apk update --force-lts --allow-untrusted
+
+RUN xargs apk add --no-cache < ${PREFIX_DIR}/DEPENDENCIES_GUACENC
+
 
 COPY packages/linux-pam-1.5.3-r7.apk /tmp/
 
@@ -352,12 +376,12 @@ ARG UID=1000
 ARG GID=1000
 RUN groupadd --gid $GID guacd
 RUN useradd --system --create-home --shell /sbin/nologin --uid $UID --gid $GID guacd
-
+COPY ./src/guacd-docker/bin/entrypoint.sh /opt/guacamole/
+RUN chmod +x /opt/guacamole/entrypoint.sh
 # Run with user guacd
 USER guacd
 
 # Expose the default listener port
 EXPOSE 4822
 
-COPY ./src/guacd-docker/bin/entrypoint.sh /opt/guacamole/
 ENTRYPOINT [ "/opt/guacamole/entrypoint.sh" ]

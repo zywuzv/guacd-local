@@ -81,9 +81,8 @@ if ENABLE_GUACD
 SUBDIRS += src/guacd
 endif
 
-if ENABLE_GUACENC
 SUBDIRS += src/guacenc
-endif
+
 
 if ENABLE_GUACLOG
 SUBDIRS += src/guaclog
